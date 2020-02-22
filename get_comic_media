@@ -51,9 +51,8 @@ def get_noe_level_url(num_url):
 
 def get_media_urls(noe_level_url, center_url):
     left_url = 'https://iqiyi.cdn9-okzy.com/'
-    response = requests.get(noe_level_url, headers)  # 请求顶级m3u8文件
-    two_level = response.text
-    rigth_url = two_level.split('\n')[-1]
+    noe_level = requests.get(noe_level_url, headers).text  # 请求顶级m3u8文件
+    rigth_url = noe_level.split('\n')[-1]
     two_level_url = left_url + center_url + rigth_url  # 拼接二级m3u8文件链接
     two_level = requests.get(two_level_url, headers).text.split(',')  # 请求二级m3u8文件
     rigth_url = rigth_url.split('/')
@@ -68,14 +67,14 @@ def get_media_urls(noe_level_url, center_url):
     return media_urls  # 返回所有ts片段链接
 
 
-def download(media_url, work, name_num):
+def download(media_url, title, name_num):
     path = 'E:\\video'
     if not os.path.exists(path):
         os.mkdir(path)
     media = requests.get(media_url, headers)  # 下载所有ts片段
-    if not os.path.exists(path + '\\' + work):
-        os.mkdir(path + '\\' + work)
-    with open(path + '\\' + work + '\\第' + str(name_num) + '集.ts', 'ab') as f:  # 以二进制追加方式写入文件
+    if not os.path.exists(path + '\\' + title):
+        os.mkdir(path + '\\' + title)
+    with open(path + '\\' + title + '\\第' + str(name_num) + '集.ts', 'ab') as f:  # 以二进制追加方式写入文件
         f.write(media.content)
         f.flush()
         f.close()
@@ -91,6 +90,7 @@ if __name__ == '__main__':
             print(index, titles[i], numbers[i])
             index += 1
         url_num = int(input('选择下载哪一部:'))
+        title = titles[url_num - 1]
         url_nums, name_nums = get_num_urls(type_urls[url_num - 1])
         one_two = input('选择单集下载(1)还是批量下载(2):')
         try:
@@ -100,12 +100,14 @@ if __name__ == '__main__':
                 name_num = int(input('\n选择下载第几集:'))
                 noe_level_url, center_url = get_noe_level_url(url_nums[name_num - 1])
                 media_urls = get_media_urls(noe_level_url, center_url)
+                if not len(media_urls):
+                    raise ValueError('二级m3u8文件获取失败')
                 print('第{0}集 开始下载...'.format(name_num))
                 start_time = datetime.datetime.now()
                 pool = multiprocessing.Pool(processes=os.cpu_count())  # 创建进程池,进程个数为电脑cpu个数
                 for media_url in media_urls:
                     print('%.2f%%' % (media_urls.index(media_url) / len(media_urls) * 100))
-                    pool.apply(functools.partial(download, work=work, name_num=name_num), (media_url,))
+                    pool.apply(functools.partial(download, title=title, name_num=name_num), (media_url,))
                     # 当一个进程执行完毕后会添加新的进程进去,阻塞,非阻塞会导致视频片段混乱
                 pool.close()  # 关闭pool，使其不在接受新的任务
                 pool.join()  # 主进程阻塞，等待子进程的退出
@@ -121,10 +123,12 @@ if __name__ == '__main__':
                 for name_num in range(start, end + 1):
                     noe_level_url, center_url = get_noe_level_url(url_nums[name_num - 1])
                     media_urls = get_media_urls(noe_level_url, center_url)
+                    if not len(media_urls):
+                        raise ValueError('二级m3u8文件获取失败')
                     print('第{0}集 开始下载...'.format(name_num))
                     for media_url in media_urls:
                         print('%.2f%%' % (media_urls.index(media_url) / len(media_urls) * 100))
-                        pool.apply(functools.partial(download, work=work, name_num=name_num), (media_url,))
+                        pool.apply(functools.partial(download, title=title, name_num=name_num), (media_url,))
                     end_time = datetime.datetime.now()
                     print('第{0}集 下载完成\n耗时:{1}'.format(name_num, end_time - start_time))
                 pool.close()
