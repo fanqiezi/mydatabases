@@ -1,0 +1,182 @@
+import requests, lxml.etree, os, multiprocessing, datetime, functools
+
+headers = {
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
+    'referer': 'https://www.tmdm.tv/search/%E5%93%86%E5%95%A6A%E6%A2%A6/?page=1'
+}
+
+
+def get_url(work):
+    url = 'https://www.tmdm.tv/search/{0}/'.format(work)
+    return url
+
+
+def get_type_url(url):
+    response = requests.get(url=url, headers=headers)
+    response.encoding = 'utf-8'
+    response = lxml.etree.HTML(response.text)
+    divs = response.xpath('//div[@class="lpic"]/ul/li')
+    titles = []
+    numbers = []
+    type_urls = []
+    for div in divs:
+        titles.append(div.xpath('./h2/a/@title')[0])
+        if len(div.xpath('./span[1]/font/text()')):
+            numbers.append(div.xpath('./span[1]/font/text()')[0])
+        else:
+            numbers.append(None)
+        type_urls.append(div.xpath('./h2/a/@href')[0])
+    return titles, numbers, type_urls
+
+
+def get_num_url(type_url):
+    response = requests.get(url=type_url, headers=headers)
+    response.encoding = 'utf-8'
+    response = lxml.etree.HTML(response.text)
+    number_urls = response.xpath('//div[@class="movurl"]/ul/li/a/@href')
+    texts = response.xpath('//div[@class="movurl"]/ul/li/a/text()')
+    urls = []
+    for number_url in number_urls:
+        number_url = type_url + number_url
+        urls.append(number_url)
+    return urls, texts
+
+
+def get_point_media_url(number_url):
+    left_url = 'https://player.tmdm.tv/disp.php?vid='
+    response = requests.get(url=number_url, headers=headers)
+    response.encoding = 'utf-8'
+    response = lxml.etree.HTML(response.text)
+    point_media_url = response.xpath('/html/body/div[2]/div[5]/div/@data-vid')[0]
+    point_media_url = left_url + point_media_url
+    return point_media_url
+
+
+def get_media_url(point_media_url):
+    response = requests.get(url=point_media_url, headers=headers)
+    response.encoding = 'utf-8'
+    response = lxml.etree.HTML(response.text)
+    media_url = response.xpath('/html/body/script/text()')[0].split('url')[1].split('"')[1]
+    return media_url
+
+
+def download_mp4(media_url, title, num):
+    path = 'E:\\video\\tmdm'
+    if not os.path.exists(path):
+        os.mkdir(path)
+    if not os.path.exists(path + '\\' + title):
+        os.mkdir(path + '\\' + title)
+    media = requests.get(url=media_url, headers=headers)
+    with open(path + '\\' + title + '\\' + str(num) + '.mp4', 'wb') as f:
+        f.write(media.content)
+        f.flush()
+        f.close()
+
+
+def get_ts_url(m3u8_url):
+    left_url = m3u8_url[:m3u8_url.rfind('/')] + '/'
+    text = requests.get(url=m3u8_url, headers=headers).text
+    text = text.split('\n')
+    ts_urls = []
+    for i in range(6, len(text) + 1, 2):
+        if text[i].find('/') > 0:
+            ts_urls.append(left_url + text[i].split('/')[-1])
+        else:
+            ts_urls.append(left_url + text[i])
+    del ts_urls[-1]
+    return ts_urls
+
+
+def download_ts(ts_urls, title, num):
+    path = 'E:\\video\\tmdm'
+    if not os.path.exists(path):
+        os.mkdir(path)
+    if not os.path.exists(path + '\\' + title):
+        os.mkdir(path + '\\' + title)
+    ts = requests.get(url=ts_urls, headers=headers)
+    with open(path + '\\' + title + '\\' + str(num) + '.ts', 'ab') as f:
+        f.write(ts.content)
+        f.flush()
+        f.close()
+
+
+if __name__ == '__main__':
+    work = input('输入动漫名:')
+    url = get_url(work)
+    titles, numbers, type_urls = get_type_url(url)
+    if len(type_urls):
+        for i in range(0, len(type_urls)):
+            print(i + 1, titles[i], numbers[i])
+        type_index = int(input('选择下载哪一部:'))
+        title = titles[type_index - 1]
+        number_urls, texts = get_num_url(type_urls[type_index - 1])
+        for i in range(0, len(texts)):
+            print(i + 1, texts[i], end='  ')
+        noe_two = int(input('\n单集下载(1) 批量下载(2):'))
+        try:
+            if noe_two == 1:
+                num = int(input('选择下载第几集:'))
+                point_media_url = get_point_media_url(number_urls[num - 1])
+                media_url = get_media_url(point_media_url)
+                if media_url.split('.')[-1] == 'mp4':
+                    print('{0} 开始下载...'.format(texts[num - 1]))
+                    start_time = datetime.datetime.now()
+                    pool = multiprocessing.Pool(os.cpu_count())
+                    pool.apply_async(functools.partial(download_mp4, title=title, num=texts[num - 1]), (media_url,))
+                    pool.close()
+                    pool.join()
+                    end_time = datetime.datetime.now()
+                    print('{0} 下载完成\n耗时:{1}'.format(texts[num - 1], end_time - start_time))
+                elif media_url.split('.')[-1] == 'm3u8':
+                    if media_url.split('/')[-1] == 'index.m3u8':
+                        media_url = media_url[:media_url.rfind('/')] + '/' + '1000k/hls/index.m3u8'
+                    ts_urls = get_ts_url(media_url)
+                    print('{0} 开始下载...'.format(texts[num - 1]))
+                    start_time = datetime.datetime.now()
+                    pool = multiprocessing.Pool(processes=os.cpu_count())
+                    for ts_url in ts_urls:
+                        pool.apply(functools.partial(download_ts, title=title, num=texts[num - 1]), (ts_url,))
+                    pool.close()
+                    pool.join()
+                    end_time = datetime.datetime.now()
+                    print('{0} 下载完成\n耗时:{1}'.format(texts[num - 1], end_time - start_time))
+                else:
+                    raise Exception
+            elif noe_two == 2:
+                start = int(input('输入起始集数:'))
+                end = int(input('输入终止集数:'))
+                start_time = datetime.datetime.now()
+                pool = multiprocessing.Pool(processes=os.cpu_count())
+                for num in range(start, end + 1):
+                    point_media_url = get_point_media_url(number_urls[num - 1])
+                    media_url = get_media_url(point_media_url)
+                    if media_url.split('.')[-1] == 'mp4':
+                        print('{0} 开始下载...'.format(texts[num - 1]))
+                        start_time_sub = datetime.datetime.now()
+                        pool = multiprocessing.Pool(os.cpu_count())
+                        pool.apply_async(functools.partial(download_mp4, title=title, num=texts[num - 1]), (media_url,))
+                        end_time_sub = datetime.datetime.now()
+                        print('{0} 下载完成\n耗时:{1}'.format(texts[num - 1], end_time_sub - start_time_sub))
+                    elif media_url.split('.')[-1] == 'm3u8':
+                        if media_url.split('/')[-1] == 'index.m3u8':
+                            media_url = media_url[:media_url.rfind('/')] + '/' + '1000k/hls/index.m3u8'
+                        ts_urls = get_ts_url(media_url)
+                        print('{0} 开始下载...'.format(texts[num - 1]))
+                        start_time_sub = datetime.datetime.now()
+                        pool = multiprocessing.Pool(processes=os.cpu_count())
+                        for ts_url in ts_urls:
+                            pool.apply(functools.partial(download_ts, title=title, num=texts[num - 1]), (ts_url,))
+                        end_time_sub = datetime.datetime.now()
+                        print('{0} 下载完成\n耗时:{1}'.format(texts[num - 1], end_time_sub - start_time_sub))
+                    else:
+                        raise Exception
+                pool.close()
+                pool.join()
+                end_time = datetime.datetime.now()
+                print('全部下载完成\n耗时:{0}'.format(end_time - start_time))
+            else:
+                print('输入的信息有误')
+        except Exception as e:
+            print(e, '\n下载失败')
+    else:
+        print('没有找到任何记录')
