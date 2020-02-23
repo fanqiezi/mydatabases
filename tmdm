@@ -2,7 +2,7 @@ import requests, lxml.etree, os, multiprocessing, datetime, functools
 
 headers = {
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
-    'referer': 'https://www.tmdm.tv/search/%E5%93%86%E5%95%A6A%E6%A2%A6/?page=1'
+    'referer': 'https://www.tmdm.tv/'
 }
 
 
@@ -26,6 +26,21 @@ def get_type_url(url):
         else:
             numbers.append(None)
         type_urls.append(div.xpath('./h2/a/@href')[0])
+    if len(response.xpath('//*[@id="lastn"]/@href')):
+        pages = response.xpath('//*[@id="lastn"]/@href')
+        for page in pages:
+            page = url + page
+            response = requests.get(url=page, headers=headers)
+            response.encoding = 'utf-8'
+            response = lxml.etree.HTML(response.text)
+            divs = response.xpath('//div[@class="lpic"]/ul/li')
+            for div in divs:
+                titles.append(div.xpath('./h2/a/@title')[0])
+                if len(div.xpath('./span[1]/font/text()')):
+                    numbers.append(div.xpath('./span[1]/font/text()')[0])
+                else:
+                    numbers.append(None)
+                type_urls.append(div.xpath('./h2/a/@href')[0])
     return titles, numbers, type_urls
 
 
@@ -115,7 +130,7 @@ if __name__ == '__main__':
         noe_two = int(input('\n单集下载(1) 批量下载(2):'))
         try:
             if noe_two == 1:
-                num = int(input('选择下载第几集:'))
+                num = int(input('选择下载第几集(输入序号):'))
                 point_media_url = get_point_media_url(number_urls[num - 1])
                 media_url = get_media_url(point_media_url)
                 if media_url.split('.')[-1] == 'mp4':
