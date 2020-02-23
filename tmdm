@@ -11,6 +11,9 @@ def get_url(work):
     return url
 
 
+'''获取搜索页'''
+
+
 def get_type_url(url):
     response = requests.get(url=url, headers=headers)
     response.encoding = 'utf-8'
@@ -28,7 +31,7 @@ def get_type_url(url):
         type_urls.append(div.xpath('./h2/a/@href')[0])
     if len(response.xpath('//*[@id="lastn"]/@href')):
         pages = response.xpath('//*[@id="lastn"]/@href')
-        for page in pages:
+        for page in pages:  # 翻页
             page = url + page
             response = requests.get(url=page, headers=headers)
             response.encoding = 'utf-8'
@@ -44,6 +47,9 @@ def get_type_url(url):
     return titles, numbers, type_urls
 
 
+'''获取集数链接'''
+
+
 def get_num_url(type_url):
     response = requests.get(url=type_url, headers=headers)
     response.encoding = 'utf-8'
@@ -57,9 +63,12 @@ def get_num_url(type_url):
     return urls, texts
 
 
+'''获取播放器链接'''
+
+
 def get_point_media_url(number_url):
     left_url = 'https://player.tmdm.tv/disp.php?vid='
-    response = requests.get(url=number_url, headers=headers)
+    response = requests.get(url=number_url, headers=headers)  # 请求播放页
     response.encoding = 'utf-8'
     response = lxml.etree.HTML(response.text)
     point_media_url = response.xpath('/html/body/div[2]/div[5]/div/@data-vid')[0]
@@ -67,12 +76,18 @@ def get_point_media_url(number_url):
     return point_media_url
 
 
+'''获取视频链接'''
+
+
 def get_media_url(point_media_url):
-    response = requests.get(url=point_media_url, headers=headers)
+    response = requests.get(url=point_media_url, headers=headers)  # 请求播放器页
     response.encoding = 'utf-8'
     response = lxml.etree.HTML(response.text)
     media_url = response.xpath('/html/body/script/text()')[0].split('url')[1].split('"')[1]
     return media_url
+
+
+'''下载mp4视频'''
 
 
 def download_mp4(media_url, title, num):
@@ -88,6 +103,9 @@ def download_mp4(media_url, title, num):
         f.close()
 
 
+'''获取ts视频段链接'''
+
+
 def get_ts_url(m3u8_url):
     left_url = m3u8_url[:m3u8_url.rfind('/')] + '/'
     text = requests.get(url=m3u8_url, headers=headers).text.split('\n')
@@ -100,6 +118,9 @@ def get_ts_url(m3u8_url):
         else:
             continue
     return ts_urls
+
+
+'''下载合并ts视频段'''
 
 
 def download_ts(ts_urls, title, num):
@@ -136,8 +157,8 @@ if __name__ == '__main__':
                 if media_url.split('.')[-1] == 'mp4':
                     print('{0} 开始下载...'.format(texts[num - 1]))
                     start_time = datetime.datetime.now()
-                    pool = multiprocessing.Pool(os.cpu_count())
-                    pool.apply_async(functools.partial(download_mp4, title=title, num=texts[num - 1]), (media_url,))
+                    pool = multiprocessing.Pool(processes=os.cpu_count())
+                    pool.apply_async(functools.partial(download_mp4, title=title, num=texts[num - 1]), (media_url,))  # 非阻塞
                     pool.close()
                     pool.join()
                     end_time = datetime.datetime.now()
@@ -148,9 +169,10 @@ if __name__ == '__main__':
                     ts_urls = get_ts_url(media_url)
                     print('{0} 开始下载...'.format(texts[num - 1]))
                     start_time = datetime.datetime.now()
-                    pool = multiprocessing.Pool(processes=os.cpu_count())
+                    pool = multiprocessing.Pool(processes=os.cpu_count())  # 进程数为cpu数
                     for ts_url in ts_urls:
                         pool.apply(functools.partial(download_ts, title=title, num=texts[num - 1]), (ts_url,))
+                        # 视频格式为ts时需要阻塞,否则下载的视频顺序混乱,进程阻塞时会降低下载速度
                     pool.close()
                     pool.join()
                     end_time = datetime.datetime.now()
