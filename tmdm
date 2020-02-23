@@ -75,15 +75,15 @@ def download_mp4(media_url, title, num):
 
 def get_ts_url(m3u8_url):
     left_url = m3u8_url[:m3u8_url.rfind('/')] + '/'
-    text = requests.get(url=m3u8_url, headers=headers).text
-    text = text.split('\n')
+    text = requests.get(url=m3u8_url, headers=headers).text.split('\n')
     ts_urls = []
-    for i in range(6, len(text) + 1, 2):
-        if text[i].find('/') > 0:
-            ts_urls.append(left_url + text[i].split('/')[-1])
+    for i in text:
+        if i.find('.ts') > 0:
+            ts_urls.append(left_url + i)
+        elif i.find('/') > 0:
+            ts_urls.append(left_url + i.split('/')[-1])
         else:
-            ts_urls.append(left_url + text[i])
-    del ts_urls[-1]
+            continue
     return ts_urls
 
 
@@ -105,12 +105,12 @@ if __name__ == '__main__':
     url = get_url(work)
     titles, numbers, type_urls = get_type_url(url)
     if len(type_urls):
-        for i in range(0, len(type_urls)):
+        for i in range(len(type_urls)):
             print(i + 1, titles[i], numbers[i])
         type_index = int(input('选择下载哪一部:'))
         title = titles[type_index - 1]
         number_urls, texts = get_num_url(type_urls[type_index - 1])
-        for i in range(0, len(texts)):
+        for i in range(len(texts)):
             print(i + 1, texts[i], end='  ')
         noe_two = int(input('\n单集下载(1) 批量下载(2):'))
         try:
