@@ -35,43 +35,6 @@ def get_num_urls(type_url):
     urls = []
     for url_num in url_nums:
         url_num = left_url + url_num
-        urls.append(url_num)import requests, os, lxml.etree, datetime, multiprocessing, functools
-
-left_url = 'https://m.hkdm688.com'
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
-    'Referer': 'https://m.hkdm688.com/js/player/mp4.php?id=https://iqiyi.cdn9-okzy.com/20200116/5009_4d6dec61/index.m3u8'
-}
-
-
-def get_url(work):
-    url = "https://m.hkdm688.com/search.php?searchword={0}".format(work)
-    return url
-
-
-def get_type_url(url):
-    responser = requests.get(url, headers=headers)  # 请求片源数
-    responser.encoding = 'utf-8'
-    responser = lxml.etree.HTML(responser.text)
-    type_urls = responser.xpath('/html/body/div[7]/li/a/@href')  # 片源链接
-    titles = responser.xpath('/html/body/div[7]/li/p/a/text()')  # 片源标题
-    numbers = responser.xpath('/html/body/div[7]/li/span/text()')  # 片源集数
-    urls = []
-    for type_url in type_urls:
-        type_url = left_url + type_url
-        urls.append(type_url)
-    return urls, titles, numbers
-
-
-def get_num_urls(type_url):
-    response = requests.get(type_url, headers=headers)  # 请求片源信息
-    response.encoding = 'utf-8'
-    response = lxml.etree.HTML(response.text)
-    url_nums = response.xpath('/html/body/div[11]/ul/li/a/@href')  # 集数链接
-    name_nums = response.xpath('/html/body/div[11]/ul/li/a/text()')  # 集数名
-    urls = []
-    for url_num in url_nums:
-        url_num = left_url + url_num
         urls.append(url_num)
     return urls, name_nums
 
@@ -98,7 +61,7 @@ def get_media_urls(noe_level_url, center_url):
     media_urls = []
     for i in range(1, len(two_level) - 1):
         urls.append(two_level[i])
-    for i in range(0, len(urls)):
+    for i in range(len(urls)):
         url = urls[i].split('\n')
         media_urls.append(left_url + center_url + center_url2 + url[1])  # 拼接ts片段链接
     return media_urls  # 返回所有ts片段链接
@@ -122,17 +85,17 @@ if __name__ == '__main__':
     url = get_url(work)
     type_urls, titles, numbers = get_type_url(url)
     if len(type_urls):
-        for i in range(0, len(titles)):
+        for i in range(len(titles)):
             print(i + 1, titles[i], numbers[i])
         url_num = int(input('选择下载哪一部:'))
         title = titles[url_num - 1]
         url_nums, name_nums = get_num_urls(type_urls[url_num - 1])
-        for i in range(0, len(name_nums)):
+        for i in range(len(name_nums)):
             print(i + 1, name_nums[i], end='  ')
         one_two = input('\n单集下载(1) 批量下载(2):')
         try:
             if one_two == '1':
-                name_num = int(input('选择下载第几集:'))
+                name_num = int(input('选择下载第几集(输入序号):'))
                 noe_level_url, center_url = get_noe_level_url(url_nums[name_num - 1])
                 media_urls = get_media_urls(noe_level_url, center_url)
                 if not len(media_urls):
@@ -175,5 +138,3 @@ if __name__ == '__main__':
             print(e, '\n下载失败')
     else:
         print('没有找到任何记录')
-
-
