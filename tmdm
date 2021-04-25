@@ -1,17 +1,20 @@
-import requests, lxml.etree, os, multiprocessing, datetime, functools
+import datetime
+import functools
+import lxml.etree
+import multiprocessing
+import os
+import requests
+import faker
 
 headers = {
-    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
-    'referer': 'https://www.tmdm.tv/'
+    'user-agent': faker.Factory.create().user_agent(),  # 生成随机ua
+    'referer': 'https://www.tmdm.tv/search/%E5%93%86%E5%95%A6A%E6%A2%A6/?page=1'
 }
 
 
 def get_url(work):
     url = 'https://www.tmdm.tv/search/{0}/'.format(work)
     return url
-
-
-'''获取搜索页'''
 
 
 def get_type_url(url):
@@ -29,25 +32,7 @@ def get_type_url(url):
         else:
             numbers.append(None)
         type_urls.append(div.xpath('./h2/a/@href')[0])
-    if len(response.xpath('//*[@id="lastn"]/@href')):
-        pages = response.xpath('//*[@id="lastn"]/@href')
-        for page in pages:  # 翻页
-            page = url + page
-            response = requests.get(url=page, headers=headers)
-            response.encoding = 'utf-8'
-            response = lxml.etree.HTML(response.text)
-            divs = response.xpath('//div[@class="lpic"]/ul/li')
-            for div in divs:
-                titles.append(div.xpath('./h2/a/@title')[0])
-                if len(div.xpath('./span[1]/font/text()')):
-                    numbers.append(div.xpath('./span[1]/font/text()')[0])
-                else:
-                    numbers.append(None)
-                type_urls.append(div.xpath('./h2/a/@href')[0])
     return titles, numbers, type_urls
-
-
-'''获取集数链接'''
 
 
 def get_num_url(type_url):
@@ -63,12 +48,9 @@ def get_num_url(type_url):
     return urls, texts
 
 
-'''获取播放器链接'''
-
-
 def get_point_media_url(number_url):
     left_url = 'https://player.tmdm.tv/disp.php?vid='
-    response = requests.get(url=number_url, headers=headers)  # 请求播放页
+    response = requests.get(url=number_url, headers=headers)
     response.encoding = 'utf-8'
     response = lxml.etree.HTML(response.text)
     point_media_url = response.xpath('/html/body/div[2]/div[5]/div/@data-vid')[0]
@@ -76,18 +58,12 @@ def get_point_media_url(number_url):
     return point_media_url
 
 
-'''获取视频链接'''
-
-
 def get_media_url(point_media_url):
-    response = requests.get(url=point_media_url, headers=headers)  # 请求播放器页
+    response = requests.get(url=point_media_url, headers=headers)
     response.encoding = 'utf-8'
     response = lxml.etree.HTML(response.text)
     media_url = response.xpath('/html/body/script/text()')[0].split('url')[1].split('"')[1]
     return media_url
-
-
-'''下载mp4视频'''
 
 
 def download_mp4(media_url, title, num):
@@ -103,28 +79,21 @@ def download_mp4(media_url, title, num):
         f.close()
 
 
-'''获取ts视频段链接'''
-
-
 def get_ts_url(m3u8_url):
     left_url = m3u8_url[:m3u8_url.rfind('/')] + '/'
-    text = requests.get(url=m3u8_url, headers=headers).text.split('\n')
+    text = requests.get(url=m3u8_url, headers=headers).text
+    texts = text.split('\n')
     ts_urls = []
-    for i in text:
-        if i.find('.ts') > 0:
-            ts_urls.append(left_url + i)
-        elif i.find('/') > 0:
-            ts_urls.append(left_url + i.split('/')[-1])
+    for i in range(len(texts)):
+        if texts[i].endswith(".ts"):
+            ts_urls.append(left_url + texts[i])
         else:
             continue
     return ts_urls
 
 
-'''下载合并ts视频段'''
-
-
 def download_ts(ts_urls, title, num):
-    path = 'E:\\video\\tmdm'
+    path = os.getcwd()
     if not os.path.exists(path):
         os.mkdir(path)
     if not os.path.exists(path + '\\' + title):
@@ -146,19 +115,19 @@ if __name__ == '__main__':
         type_index = int(input('选择下载哪一部:'))
         title = titles[type_index - 1]
         number_urls, texts = get_num_url(type_urls[type_index - 1])
-        for i in range(len(texts)):
+        for i in range(0, len(texts)):
             print(i + 1, texts[i], end='  ')
         noe_two = int(input('\n单集下载(1) 批量下载(2):'))
         try:
             if noe_two == 1:
-                num = int(input('选择下载第几集(输入序号):'))
+                num = int(input('选择下载第几集:'))
                 point_media_url = get_point_media_url(number_urls[num - 1])
                 media_url = get_media_url(point_media_url)
                 if media_url.split('.')[-1] == 'mp4':
                     print('{0} 开始下载...'.format(texts[num - 1]))
                     start_time = datetime.datetime.now()
-                    pool = multiprocessing.Pool(processes=os.cpu_count())
-                    pool.apply_async(functools.partial(download_mp4, title=title, num=texts[num - 1]), (media_url,))  # 非阻塞
+                    pool = multiprocessing.Pool(os.cpu_count())
+                    pool.apply_async(functools.partial(download_mp4, title=title, num=texts[num - 1]), (media_url,))
                     pool.close()
                     pool.join()
                     end_time = datetime.datetime.now()
@@ -169,10 +138,9 @@ if __name__ == '__main__':
                     ts_urls = get_ts_url(media_url)
                     print('{0} 开始下载...'.format(texts[num - 1]))
                     start_time = datetime.datetime.now()
-                    pool = multiprocessing.Pool(processes=os.cpu_count())  # 进程数为cpu数
+                    pool = multiprocessing.Pool(processes=os.cpu_count())
                     for ts_url in ts_urls:
                         pool.apply(functools.partial(download_ts, title=title, num=texts[num - 1]), (ts_url,))
-                        # 视频格式为ts时需要阻塞,否则下载的视频顺序混乱,进程阻塞时会降低下载速度
                     pool.close()
                     pool.join()
                     end_time = datetime.datetime.now()
