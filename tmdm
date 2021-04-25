@@ -6,6 +6,8 @@ import os
 import requests
 import faker
 
+FOLDER_NAME = "动漫"
+
 headers = {
     'user-agent': faker.Factory.create().user_agent(),  # 生成随机ua
     'referer': 'https://www.tmdm.tv/search/%E5%93%86%E5%95%A6A%E6%A2%A6/?page=1'
@@ -67,13 +69,13 @@ def get_media_url(point_media_url):
 
 
 def download_mp4(media_url, title, num):
-    path = 'E:\\video\\tmdm'
-    if not os.path.exists(path):
-        os.mkdir(path)
-    if not os.path.exists(path + '\\' + title):
-        os.mkdir(path + '\\' + title)
+    path = os.getcwd()
+    if not os.path.exists(path + '\\' + FOLDER_NAME):
+        os.mkdir(path + '\\' + FOLDER_NAME)
+    if not os.path.exists(path + '\\' + FOLDER_NAME + '\\' + title):
+        os.mkdir(path + '\\' + FOLDER_NAME + '\\' + title)
     media = requests.get(url=media_url, headers=headers)
-    with open(path + '\\' + title + '\\' + str(num) + '.mp4', 'wb') as f:
+    with open(path + '\\' + FOLDER_NAME + '\\' + title + '\\' + str(num) + '.mp4', 'wb') as f:
         f.write(media.content)
         f.flush()
         f.close()
@@ -94,12 +96,12 @@ def get_ts_url(m3u8_url):
 
 def download_ts(ts_urls, title, num):
     path = os.getcwd()
-    if not os.path.exists(path):
-        os.mkdir(path)
-    if not os.path.exists(path + '\\' + title):
-        os.mkdir(path + '\\' + title)
+    if not os.path.exists(path + '\\动漫'):
+        os.mkdir(path + '\\动漫')
+    if not os.path.exists(path + '\\动漫\\' + title):
+        os.mkdir(path + '\\动漫\\' + title)
     ts = requests.get(url=ts_urls, headers=headers)
-    with open(path + '\\' + title + '\\' + str(num) + '.ts', 'ab') as f:
+    with open(path + '\\动漫\\' + title + '\\' + str(num) + '.ts', 'ab') as f:
         f.write(ts.content)
         f.flush()
         f.close()
